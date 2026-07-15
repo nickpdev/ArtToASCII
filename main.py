@@ -1,4 +1,5 @@
 import PIL.Image
+from pathlib import Path
 
 # ascii characters used to build the output text
 ASCII_CHARS = list("@$B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ")
@@ -45,7 +46,15 @@ def main(new_width = 100):
     print(ascii_image)
 
     # save result to "ascii_image.txt"
-    with open("ascii_image.txt", "w") as f:
+    output_folder = Path("outputs")
+    output_folder.mkdir(exist_ok=True)
+
+    image_name = Path(path).stem
+    output_path = output_folder / f"{image_name}_ascii.txt"
+
+    with open(output_path, "w") as f:
         f.write(ascii_image)
+
+    print(f"Saved ASCII image to {output_path}")
 
 main(150)
