@@ -17,7 +17,10 @@ def grayify(image):
     return(grayscale_image)
 
 # convert pixels to a string of ASCII characters
-
+def pixels_to_ascii(image):
+    pixels = image.getdata()
+    characters = "".join([ASCII_CHARS[pixel//25] for pixel in pixels])
+    return(characters)
 
 def main():
     # open image from user-input
@@ -27,4 +30,4 @@ def main():
     except:
         print(path, "is not a valid pathname to an image.")
 
-main()    
+main()
