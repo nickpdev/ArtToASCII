@@ -1,105 +1,154 @@
 import PIL.Image
+from PIL import ImageDraw, ImageFont
 from pathlib import Path
 
 # ascii characters used to build the output text
-ASCII_CHARS = list("@#%&8BMW*+=-:. ")
+ASCII_CHARS = list("@$B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ")
+
 
 # resize image according to a new width
-def resize_image(image, new_width = 150):
+def resize_image(image, new_width=150):
     width, height = image.size
     ratio = height / width
+
+    # 0.45 helps correct terminal/text character height distortion
     new_height = int(new_width * ratio * 0.45)
+
     resized_image = image.resize((new_width, new_height))
-    return(resized_image)
+    return resized_image
+
 
 # convert each pixel to grayscale
 def grayify(image):
     grayscale_image = image.convert("L")
-    return(grayscale_image)
+    return grayscale_image
+
 
 # convert pixels to a string of ASCII characters
 def pixels_to_ascii(image):
     pixels = image.get_flattened_data()
+
+    # map each grayscale pixel value from 0-255 to a character in ASCII_CHARS
     characters = "".join(
         ASCII_CHARS[pixel * (len(ASCII_CHARS) - 1) // 255]
         for pixel in pixels
     )
+
     return characters
 
-def pixels_to_colored_ascii(image):
-    rgb_image = image.convert("RGB")
-    grayscale_image = grayify(image)
 
-    rgb_pixels = list(rgb_image.get_flattened_data())
-    grayscale_pixels = list(grayscale_image.get_flattened_data())
+# create and save a colored ASCII image as a PNG
+def save_colored_ascii_png(image, output_path, new_width=150):
+    # resize the image before converting it to ASCII
+    resized_image = resize_image(image, new_width)
 
-    colored_chars = []
+    # RGB image is used for the color of each character
+    rgb_image = resized_image.convert("RGB")
 
-    for gray_pixel, rgb_pixel in zip(grayscale_pixels, rgb_pixels):
-        r, g, b = rgb_pixel
+    # grayscale image is used to choose which ASCII character to draw
+    grayscale_image = grayify(resized_image)
 
-        char = ASCII_CHARS[gray_pixel * (len(ASCII_CHARS) - 1) // 255]
+    width, height = rgb_image.size
 
-        colored_char = f"\033[38;2;{r};{g};{b}m{char}\033[0m"
-        colored_chars.append(colored_char)
+    # size of each ASCII character cell in the final PNG
+    one_char_width = 10
+    one_char_height = 18
+    font_size = 15
 
-    return colored_chars
+    # create a blank black image that the ASCII characters will be drawn onto
+    output_image = PIL.Image.new(
+        "RGB",
+        (one_char_width * width, one_char_height * height),
+        color=(0, 0, 0)
+    )
 
-def main(new_width = 150):
-    # open image from user-input
+    # drawing object used to place text onto the output image
+    draw = ImageDraw.Draw(output_image)
+
+    # try to use a monospace Mac font, otherwise fall back to Pillow's default font
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Menlo.ttc", font_size)
+    except:
+        font = ImageFont.load_default()
+
+    # load pixel access objects so we can read RGB and grayscale values by coordinate
+    rgb_pixels = rgb_image.load()
+    grayscale_pixels = grayscale_image.load()
+
+    # loop through each pixel and draw an ASCII character with the original RGB color
+    for y in range(height):
+        for x in range(width):
+            r, g, b = rgb_pixels[x, y]
+            gray = grayscale_pixels[x, y]
+
+            # choose ASCII character based on brightness
+            char = ASCII_CHARS[gray * (len(ASCII_CHARS) - 1) // 255]
+
+            # draw the character at the matching position in the output image
+            draw.text(
+                (x * one_char_width, y * one_char_height),
+                char,
+                font=font,
+                fill=(r, g, b)
+            )
+
+    # save the final colored ASCII image
+    output_image.save(output_path)
+
+
+def main(new_width=150):
+    # ask user for the image path
     path = input("Enter the pathname to an image:\n")
-    print("Processing image...")
 
+    # try to open the image
     try:
         image = PIL.Image.open(path)
     except:
         print(path, "is not a valid pathname to an image.")
         return
 
+    # ask whether to create a colored PNG or normal text ASCII
     color_choice = input("\nDo you want the ASCII image to be colored? yes/no:\n").lower()
 
-    # resize image once
-    resized_image = resize_image(image, new_width)
+    # create the outputs folder if it does not already exist
+    output_folder = Path("outputs")
+    output_folder.mkdir(exist_ok=True)
+
+    # use the original image filename for the output file
+    image_name = Path(path).stem
 
     if color_choice == "yes" or color_choice == "y":
-        # convert image to colored ASCII
-        new_image_data = pixels_to_colored_ascii(resized_image)
+        # colored ASCII is saved as a PNG so the RGB colors display correctly
+        output_path = output_folder / f"{image_name}_ascii_color.png"
 
-        # format colored ASCII
-        pixel_count = len(new_image_data)
-        ascii_image = "\n".join(
-            "".join(new_image_data[i:i + new_width])
-            for i in range(0, pixel_count, new_width)
-        )
+        print("\nProcessing colored ASCII image...")
+        save_colored_ascii_png(image, output_path, new_width)
 
-        file_suffix = "ascii_color"
+        print(f"Saved colored ASCII image to {output_path}")
 
     else:
-        # convert image to normal ASCII
+        # normal ASCII is saved as a plain text file
+        resized_image = resize_image(image, new_width)
+
         new_image_data = pixels_to_ascii(grayify(resized_image))
 
-        # format normal ASCII
         pixel_count = len(new_image_data)
+
+        # split the long ASCII string into lines matching the image width
         ascii_image = "\n".join(
             new_image_data[i:i + new_width]
             for i in range(0, pixel_count, new_width)
         )
 
-        file_suffix = "ascii"
+        print(ascii_image)
 
-    # print result
-    print(ascii_image)
+        output_path = output_folder / f"{image_name}_ascii.txt"
 
-    # save results to outputs folder
-    output_folder = Path("outputs")
-    output_folder.mkdir(exist_ok=True)
+        # save the plain ASCII image
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(ascii_image)
 
-    image_name = Path(path).stem
-    output_path = output_folder / f"{image_name}_{file_suffix}.txt"
+        print(f"Saved ASCII image to {output_path}")
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(ascii_image)
-
-    print(f"Saved ASCII image to {output_path}")
 
 main(150)
