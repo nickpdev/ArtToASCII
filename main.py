@@ -1,9 +1,12 @@
 import PIL.Image
-from PIL import ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont, ImageOps
 from pathlib import Path
 
-# ascii characters used to build the output text
-ASCII_CHARS = list("@$B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ")
+# detailed character ramp for colored PNG output
+COLOR_ASCII_CHARS = list("@$B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ")
+
+# cleaner character ramp for plain text output
+TEXT_ASCII_CHARS = list("@#%*+=-:.    ")
 
 
 # resize image according to a new width
@@ -18,19 +21,31 @@ def resize_image(image, new_width=150):
     return resized_image
 
 
+# apply phone/camera orientation metadata so vertical photos stay vertical
+def fix_orientation(image):
+    return ImageOps.exif_transpose(image)
+
+
 # convert each pixel to grayscale
 def grayify(image):
     grayscale_image = image.convert("L")
     return grayscale_image
 
+# improve grayscale contrast before converting to plain ASCII
+def enhance_grayscale(image):
+    # stretches the brightness range, but ignores extreme dark/light outliers
+    enhanced_image = ImageOps.autocontrast(image, cutoff=2)
+    return enhanced_image
+
 
 # convert pixels to a string of ASCII characters
-def pixels_to_ascii(image):
+def pixels_to_ascii(image, ascii_chars, white_threshold=245):
     pixels = image.get_flattened_data()
 
-    # map each grayscale pixel value from 0-255 to a character in ASCII_CHARS
+    # map each grayscale pixel value from 0-255 to a character in the selected ramp
+    # very bright pixels become blank spaces to reduce noise
     characters = "".join(
-        ASCII_CHARS[pixel * (len(ASCII_CHARS) - 1) // 255]
+        " " if pixel >= white_threshold else ascii_chars[pixel * (len(ascii_chars) - 1) // 255]
         for pixel in pixels
     )
 
@@ -82,7 +97,7 @@ def save_colored_ascii_png(image, output_path, new_width=150):
             gray = grayscale_pixels[x, y]
 
             # choose ASCII character based on brightness
-            char = ASCII_CHARS[gray * (len(ASCII_CHARS) - 1) // 255]
+            char = COLOR_ASCII_CHARS[gray * (len(COLOR_ASCII_CHARS) - 1) // 255]
 
             # draw the character at the matching position in the output image
             draw.text(
@@ -103,6 +118,7 @@ def main(new_width=150):
     # try to open the image
     try:
         image = PIL.Image.open(path)
+        image = fix_orientation(image)
     except:
         print(path, "is not a valid pathname to an image.")
         return
@@ -130,7 +146,10 @@ def main(new_width=150):
         # normal ASCII is saved as a plain text file
         resized_image = resize_image(image, new_width)
 
-        new_image_data = pixels_to_ascii(grayify(resized_image))
+        grayscale_image = grayify(resized_image)
+        grayscale_image = enhance_grayscale(grayscale_image)
+
+        new_image_data = pixels_to_ascii(grayscale_image, TEXT_ASCII_CHARS, white_threshold=240)
 
         pixel_count = len(new_image_data)
 
