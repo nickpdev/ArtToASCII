@@ -8,6 +8,13 @@ COLOR_ASCII_CHARS = list("@$B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_
 # cleaner character ramp for plain text output
 TEXT_ASCII_CHARS = list("@#%*+=-:.    ")
 
+# detail levels control the ASCII image width
+DETAIL_LEVELS = {
+    "low": 80,
+    "normal": 150,
+    "high": 250
+}
+
 
 # resize image according to a new width
 def resize_image(image, new_width=150):
@@ -138,6 +145,16 @@ def main(new_width=150):
     # ask whether to create a colored PNG or normal text ASCII
     color_choice = input("\nDo you want the ASCII image to be colored? yes/no:\n").lower()
 
+    # ask user how detailed they want the output to be
+    detail_choice = input("\nChoose detail level: low/normal/high:\n").lower()
+
+    # use the selected detail level, or fall back to normal if the input is invalid
+    if detail_choice not in DETAIL_LEVELS:
+        print("Invalid detail level. Using normal.")
+        detail_choice = "normal"
+
+    new_width = DETAIL_LEVELS[detail_choice]
+
     # create the outputs folder if it does not already exist
     output_folder = Path("outputs")
     output_folder.mkdir(exist_ok=True)
@@ -147,7 +164,7 @@ def main(new_width=150):
 
     if color_choice == "yes" or color_choice == "y":
         # colored ASCII is saved as a PNG so the RGB colors display correctly
-        output_path = output_folder / f"{image_name}_ascii_color.png"
+        output_path = output_folder / f"{image_name}_ascii_color_{detail_choice}.png"
 
         print("\nProcessing colored ASCII image...")
         save_colored_ascii_png(image, output_path, new_width)
@@ -173,7 +190,7 @@ def main(new_width=150):
 
         print(ascii_image)
 
-        output_path = output_folder / f"{image_name}_ascii.txt"
+        output_path = output_folder / f"{image_name}_ascii_{detail_choice}.txt"
 
         # save the plain ASCII image
         with open(output_path, "w", encoding="utf-8") as f:
