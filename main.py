@@ -21,6 +21,18 @@ def resize_image(image, new_width=150):
     return resized_image
 
 
+# resize image for colored PNG output while preserving the original aspect ratio
+def resize_image_for_png(image, new_width=150, one_char_width=10, one_char_height=18):
+    width, height = image.size
+    ratio = height / width
+
+    # adjusts the resized pixel height based on the final drawn character cell size
+    new_height = int(new_width * ratio * (one_char_width / one_char_height))
+
+    resized_image = image.resize((new_width, new_height))
+    return resized_image
+
+
 # apply phone/camera orientation metadata so vertical photos stay vertical
 def fix_orientation(image):
     return ImageOps.exif_transpose(image)
@@ -54,8 +66,13 @@ def pixels_to_ascii(image, ascii_chars, white_threshold=245):
 
 # create and save a colored ASCII image as a PNG
 def save_colored_ascii_png(image, output_path, new_width=150):
+    # size of each ASCII character cell in the final PNG
+    one_char_width = 10
+    one_char_height = 18
+    font_size = 15
+
     # resize the image before converting it to ASCII
-    resized_image = resize_image(image, new_width)
+    resized_image = resize_image_for_png(image, new_width, one_char_width, one_char_height)
 
     # RGB image is used for the color of each character
     rgb_image = resized_image.convert("RGB")
@@ -64,11 +81,6 @@ def save_colored_ascii_png(image, output_path, new_width=150):
     grayscale_image = grayify(resized_image)
 
     width, height = rgb_image.size
-
-    # size of each ASCII character cell in the final PNG
-    one_char_width = 10
-    one_char_height = 18
-    font_size = 15
 
     # create a blank black image that the ASCII characters will be drawn onto
     output_image = PIL.Image.new(
