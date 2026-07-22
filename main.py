@@ -46,6 +46,13 @@ def fix_orientation(image):
     return ImageOps.exif_transpose(image)
 
 
+# remove the image background using rembg
+def remove_image_background(image):
+    rgba_image = image.convert("RGBA")
+    no_background_image = remove(rgba_image)
+    return no_background_image
+
+
 # convert each pixel to grayscale
 def grayify(image):
     grayscale_image = image.convert("L")
@@ -59,15 +66,28 @@ def enhance_grayscale(image):
 
 
 # convert pixels to a string of ASCII characters
-def pixels_to_ascii(image, ascii_chars, white_threshold=245):
-    pixels = image.get_flattened_data()
+def pixels_to_ascii(image, ascii_chars, white_threshold=245, alpha_image=None):
+    pixels = image.getdata()
 
-    # map each grayscale pixel value from 0-255 to a character in the selected ramp
-    # very bright pixels become blank spaces to reduce noise
-    characters = "".join(
-        " " if pixel >= white_threshold else ascii_chars[pixel * (len(ascii_chars) - 1) // 255]
-        for pixel in pixels
-    )
+    # if the image has transparency, use the alpha channel to detect removed background pixels
+    if alpha_image is not None:
+        alpha_pixels = alpha_image.getdata()
+
+        # map each grayscale pixel value from 0-255 to a character in the selected ramp
+        # transparent pixels become blank spaces
+        # very bright pixels become blank spaces to reduce noise
+        characters = "".join(
+            " " if alpha < 128 or pixel >= white_threshold else ascii_chars[pixel * (len(ascii_chars) - 1) // 255]
+            for pixel, alpha in zip(pixels, alpha_pixels)
+        )
+
+    else:
+        # map each grayscale pixel value from 0-255 to a character in the selected ramp
+        # very bright pixels become blank spaces to reduce noise
+        characters = "".join(
+            " " if pixel >= white_threshold else ascii_chars[pixel * (len(ascii_chars) - 1) // 255]
+            for pixel in pixels
+        )
 
     return characters
 
@@ -81,6 +101,9 @@ def save_colored_ascii_png(image, output_path, new_width=150):
 
     # resize the image before converting it to ASCII
     resized_image = resize_image_for_png(image, new_width, one_char_width, one_char_height)
+
+    # alpha image is used to detect transparent background pixels
+    alpha_image = resized_image.getchannel("A") if "A" in resized_image.getbands() else None
 
     # RGB image is used for the color of each character
     rgb_image = resized_image.convert("RGB")
@@ -109,10 +132,15 @@ def save_colored_ascii_png(image, output_path, new_width=150):
     # load pixel access objects so we can read RGB and grayscale values by coordinate
     rgb_pixels = rgb_image.load()
     grayscale_pixels = grayscale_image.load()
+    alpha_pixels = alpha_image.load() if alpha_image is not None else None
 
     # loop through each pixel and draw an ASCII character with the original RGB color
     for y in range(height):
         for x in range(width):
+            # skip transparent background pixels
+            if alpha_pixels is not None and alpha_pixels[x, y] < 128:
+                continue
+
             r, g, b = rgb_pixels[x, y]
             gray = grayscale_pixels[x, y]
 
@@ -143,6 +171,16 @@ def main(new_width=150):
         print(path, "is not a valid pathname to an image.")
         return
 
+    # ask whether to remove the background
+    background_choice = input("\nDo you want to remove the background? yes/no:\n").lower()
+
+    background_removed = False
+
+    if background_choice == "yes" or background_choice == "y":
+        print("\nRemoving background...")
+        image = remove_image_background(image)
+        background_removed = True
+
     # ask whether to create a colored PNG or normal text ASCII
     color_choice = input("\nDo you want the ASCII image to be colored? yes/no:\n").lower()
 
@@ -163,9 +201,12 @@ def main(new_width=150):
     # use the original image filename for the output file
     image_name = Path(path).stem
 
+    # add no_bg to the filename if the background was removed
+    background_suffix = "_no_bg" if background_removed else ""
+
     if color_choice == "yes" or color_choice == "y":
         # colored ASCII is saved as a PNG so the RGB colors display correctly
-        output_path = output_folder / f"{image_name}_ascii_color_{detail_choice}.png"
+        output_path = output_folder / f"{image_name}_ascii_color_{detail_choice}{background_suffix}.png"
 
         print("\nProcessing colored ASCII image...")
         save_colored_ascii_png(image, output_path, new_width)
@@ -176,10 +217,13 @@ def main(new_width=150):
         # normal ASCII is saved as a plain text file
         resized_image = resize_image(image, new_width)
 
+        # alpha image is used to detect transparent background pixels
+        alpha_image = resized_image.getchannel("A") if "A" in resized_image.getbands() else None
+
         grayscale_image = grayify(resized_image)
         grayscale_image = enhance_grayscale(grayscale_image)
 
-        new_image_data = pixels_to_ascii(grayscale_image, TEXT_ASCII_CHARS, white_threshold=240)
+        new_image_data = pixels_to_ascii(grayscale_image, TEXT_ASCII_CHARS, white_threshold=240, alpha_image=alpha_image)
 
         pixel_count = len(new_image_data)
 
@@ -191,7 +235,7 @@ def main(new_width=150):
 
         print(ascii_image)
 
-        output_path = output_folder / f"{image_name}_ascii_{detail_choice}.txt"
+        output_path = output_folder / f"{image_name}_ascii_{detail_choice}{background_suffix}.txt"
 
         # save the plain ASCII image
         with open(output_path, "w", encoding="utf-8") as f:
