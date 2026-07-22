@@ -1,6 +1,7 @@
 import PIL.Image
 from PIL import ImageDraw, ImageFont, ImageOps
 from pathlib import Path
+from rembg import remove
 
 # detailed character ramp for colored PNG output
 COLOR_ASCII_CHARS = list("@$B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ")
