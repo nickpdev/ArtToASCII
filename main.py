@@ -194,10 +194,6 @@ def main(new_width=150):
 
     new_width = DETAIL_LEVELS[detail_choice]
 
-    # create the outputs folder if it does not already exist
-    output_folder = Path("outputs")
-    output_folder.mkdir(exist_ok=True)
-
     # use the original image filename for the output file
     image_name = Path(path).stem
 
@@ -205,6 +201,10 @@ def main(new_width=150):
     background_suffix = "_no_bg" if background_removed else ""
 
     if color_choice == "yes" or color_choice == "y":
+        # create the color output folder for the selected detail level
+        output_folder = Path("outputs") / "color" / detail_choice
+        output_folder.mkdir(parents=True, exist_ok=True)
+
         # colored ASCII is saved as a PNG so the RGB colors display correctly
         output_path = output_folder / f"{image_name}_ascii_color_{detail_choice}{background_suffix}.png"
 
@@ -214,6 +214,10 @@ def main(new_width=150):
         print(f"Saved colored ASCII image to {output_path}")
 
     else:
+        # create the text output folder for the selected detail level
+        output_folder = Path("outputs") / "text" / detail_choice
+        output_folder.mkdir(parents=True, exist_ok=True)
+
         # normal ASCII is saved as a plain text file
         resized_image = resize_image(image, new_width)
 
